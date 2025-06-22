@@ -11,7 +11,7 @@ def get_data():
     """
     读取数据
     设置matplotlib绘图时的字体，这个一般都没有吧
-    my_font = font_manager.FontProperties(fname="C:\Windows\Fonts\Songti.ttc")
+    my_font = font_manager.FontProperties(fname="path/to/Songti.ttc")
     统计句子长度及长度出现的频数
     """
     df = pd.read_csv(settings.INPUT_DATA_FILE_PATH, encoding="utf-8")
@@ -42,12 +42,12 @@ def process(sent_freq, sent_length):
 
     # 寻找分位点为quantile的评论长度
     quantile = 0.9
-    # print(list(sent_pentage_list))
+    # logger.info(list(sent_pentage_list))
     for length, per in zip(sent_length, sent_pentage_list):
         if round(per, 2) == quantile:
             index = length
             break
-    print("\n分位点为%s的微博长度:%d." % (quantile, index))
+    logger.info("分位点为%s的微博长度:%d." % (quantile, index))
 
     # 绘制评论长度累积分布函数图
     plt.plot(sent_length, sent_pentage_list)
