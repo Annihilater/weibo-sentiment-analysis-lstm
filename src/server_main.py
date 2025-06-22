@@ -39,6 +39,7 @@ from tensorflow.keras.layers import (
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.utils import plot_model
+from sklearn.metrics import classification_report
 
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -473,14 +474,76 @@ def train_with_multi_gpu(
 
     logger.info("训练完成！")
 
-    # 手动保存最终模型
+    # 手动保存最终模型的权重
     # 因为EarlyStopping的restore_best_weights=True，所以这将保存验证损失最小的模型
-    final_model_path = os.path.join(
-        os.path.dirname(model_save_path), "lstm_model_final.keras"
+    final_weights_path = os.path.join(
+        os.path.dirname(model_save_path), "lstm_model_final.weights.h5"
     )
-    logger.info(f"正在手动保存最终模型到: {final_model_path}")
-    model.save(final_model_path)
-    logger.info("最终模型已成功保存！")
+    logger.info(f"正在手动保存最终模型权重到: {final_weights_path}")
+    model.save_weights(final_weights_path)
+    logger.info("最终模型权重已成功保存！")
+
+    # =================================================================
+    # 在训练后直接进行评估
+    # =================================================================
+    logger.info("======================================")
+    logger.info("开始在测试集上进行最终评估...")
+    logger.info("======================================")
+
+    # 对于分布式模型，评估最好也在策略范围内进行，以确保度量标准正确计算
+    # 或者，我们可以直接在主GPU上评估，因为模型权重是同步的
+    # 这里我们采用更简单的方式，直接在 numpy 数据上评估
+    logger.info("使用 test_x 和 test_y 进行最终评估。")
+
+    # 评估时可以使用更大的批次大小
+    evaluation_batch_size = global_batch_size * 2
+
+    test_loss, test_accuracy, test_precision, test_recall = model.evaluate(
+        test_x,
+        test_y,
+        batch_size=evaluation_batch_size,
+        verbose=1,
+    )
+
+    logger.info(f"最终评估 - 测试集损失: {test_loss:.4f}")
+    logger.info(f"最终评估 - 测试集准确率: {test_accuracy:.4f}")
+    logger.info(f"最终评估 - 测试集精确率: {test_precision:.4f}")
+    logger.info(f"最终评估 - 测试集召回率: {test_recall:.4f}")
+
+    # 获取预测结果以生成分类报告
+    y_pred = model.predict(
+        test_x,
+        batch_size=evaluation_batch_size,
+        verbose=1,
+    )
+    y_pred_classes = np.argmax(y_pred, axis=1)
+    y_true_classes = np.argmax(test_y, axis=1)
+
+    # 记录详细的分类报告
+    logger.info("\n最终评估 - 分类报告:")
+    report = classification_report(
+        y_true_classes,
+        y_pred_classes,
+        target_names=list(output_dictionary.values()),
+        digits=4,
+    )
+    # classification_report的输出可能包含换行符，直接打印
+    for line in report.split("\n"):
+        logger.info(line)
+
+    # 记录一些预测示例
+    logger.info("\n最终评估 - 示例预测:")
+    num_samples_to_show = min(10, len(test_x))
+    for i in range(num_samples_to_show):
+        # 从id序列反向解析为句子
+        sentence = "".join(
+            [inverse_word_dictionary.get(j, "?") for j in test_x[i] if j != 0]
+        )
+        true_label = output_dictionary.get(y_true_classes[i])
+        pred_label = output_dictionary.get(y_pred_classes[i])
+        logger.info(f"文本: {sentence}")
+        logger.info(f"真实标签: {true_label}, 预测标签: {pred_label}")
+        logger.info("---")
 
     return history
 
