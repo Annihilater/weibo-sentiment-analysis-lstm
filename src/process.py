@@ -1,7 +1,8 @@
-from itertools import accumulate
 import platform
-import matplotlib.pyplot as plt
+from itertools import accumulate
+
 import matplotlib.font_manager as font_manager
+import matplotlib.pyplot as plt
 import pandas as pd
 
 from src.config import settings
@@ -14,7 +15,7 @@ def configure_matplotlib_fonts():
     """
     system = platform.system()
     logger.info(f"当前操作系统: {system}")
-    
+
     if system == "Windows":
         font_list = ["SimHei", "Microsoft YaHei"]
     elif system == "Linux":
@@ -23,7 +24,7 @@ def configure_matplotlib_fonts():
         font_list = ["Arial Unicode MS", "Hiragino Sans GB", "PingFang HK"]
     else:
         font_list = []
-    
+
     # 尝试设置字体
     font_found = False
     for font_name in font_list:
@@ -36,7 +37,7 @@ def configure_matplotlib_fonts():
                 break
         except Exception as e:
             logger.warning(f"设置字体 {font_name} 失败: {str(e)}")
-    
+
     if not font_found:
         logger.warning("未找到合适的中文字体，将使用系统默认字体")
         # 使用系统默认字体
@@ -50,7 +51,7 @@ def get_data():
     """
     # 配置字体
     configure_matplotlib_fonts()
-    
+
     df = pd.read_csv(settings.INPUT_DATA_FILE_PATH, encoding="utf-8")
     logger.info(df.groupby("label")["label"].count())
     df["length"] = df["evaluation"].apply(lambda x: len(x))
@@ -65,7 +66,7 @@ def get_data():
     plt.xlabel("评论长度")
     plt.ylabel("评论长度出现的频数")
     plt.show()
-    
+
     return sent_freq, sent_length
 
 
@@ -75,7 +76,7 @@ def process(sent_freq, sent_length):
     """
     # 配置字体
     configure_matplotlib_fonts()
-    
+
     # 绘制评论长度累积分布函数(CDF)
     sent_pentage_list = [(count / sum(sent_freq)) for count in accumulate(sent_freq)]
 
