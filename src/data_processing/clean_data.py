@@ -1,4 +1,5 @@
 import os
+import traceback
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -165,13 +166,13 @@ class DataCleaner:
             logger.info(f"输出文件编码：{self.encoding_to}")
 
         except UnicodeDecodeError as e:
+            logger.error(traceback.format_exc())
             logger.info(f"\n编码错误：{e}")
             logger.info("请检查输入文件的编码格式是否正确")
         except Exception as e:
+            logger.error(traceback.format_exc())
             logger.info(f"\n发生错误：{e}")
-            import traceback
-
-            logger.info(traceback.format_exc())
+            logger.error(traceback.format_exc())
 
 
 def main():
