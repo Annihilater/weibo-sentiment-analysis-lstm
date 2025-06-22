@@ -111,7 +111,11 @@ def model_train(input_shape: int, filepath: str, model_save_path: str):
     :param model_save_path: 模型保存路径
     :return:
     """
-    # 将数据集分为训练集和测试集，占比为9：1
+    logger.info(f"开始训练模型，输入序列长度: {input_shape}")
+    logger.info(f"数据集路径: {filepath}")
+    logger.info(f"模型保存路径: {model_save_path}")
+
+    logger.info("将数据集分为训练集和测试集，占比为9：1")
     # input_shape=100
     x, y, output_dictionary, vocab_size, label_size, inverse_word_dictionary = (
         load_data(filepath, input_shape)
@@ -141,12 +145,15 @@ def model_train(input_shape: int, filepath: str, model_save_path: str):
         logger.info(f"start:{start}, end:{end}")
         sentence = [inverse_word_dictionary[i] for i in test_x[start] if i != 0]
         y_predict = lstm_model.predict(test_x[start:end])
+
         logger.info("y_predict:", y_predict)
         label_predict = output_dictionary[np.argmax(y_predict[0])]
         label_true = output_dictionary[np.argmax(test_y[start:end])]
+        
         logger.info(f"label_predict:{label_predict}, label_true:{label_true}")
         # 输出预测结果
         logger.info("".join(sentence), label_true, label_predict)
+        
         predict.append(label_predict)
         label.append(label_true)
 
