@@ -14,9 +14,13 @@ echo "- 内存: 420.9GB"
 echo "- 硬盘: 5.3TB"
 echo "=========================================="
 
+# 设置环境变量
+export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6  # 使用7张GPU中的前6张
+export TF_FORCE_GPU_ALLOW_GROWTH=true  # 允许GPU内存动态增长
+export TF_CPP_MIN_LOG_LEVEL=0  # 显示所有日志
+
 # 记录开始时间
-START_TIME=$(date +%s)
-echo "开始时间: $(date)"
+start_time=$(date +%s)
 
 # 检查并激活conda环境
 echo "正在激活conda环境..."
@@ -122,13 +126,16 @@ echo "=========================================="
 echo "开始运行主程序（前台模式）..."
 echo "=========================================="
 
-# 直接运行主程序（前台模式）
-python -m src.server_main
+# 在前台运行Python脚本，便于观察日志
+echo "开始运行服务器..."
+python src/server_main.py
 
 # 计算运行时间
-END_TIME=$(date +%s)
-DURATION=$((END_TIME - START_TIME))
+end_time=$(date +%s)
+runtime=$((end_time - start_time))
+
+# 输出运行时间
 echo "=========================================="
 echo "程序运行完成！"
-echo "总运行时间: ${DURATION}秒"
+echo "总运行时间: ${runtime}秒"
 echo "==========================================" 
