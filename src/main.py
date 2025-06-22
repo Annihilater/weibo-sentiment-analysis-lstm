@@ -25,7 +25,7 @@ def main():
     input_shape = 180
     model_train(
         input_shape=input_shape,
-        filepath=settings.INPUT_DIR_PATH,
+        filepath=settings.INPUT_DATA_FILE_PATH,
         model_save_path=settings.MODEL_SAVE_FILE_PATH,
     )
 
