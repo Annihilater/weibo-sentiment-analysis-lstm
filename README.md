@@ -173,3 +173,39 @@ pip install -r requirements.txt
 1. 确保输入数据为UTF-8编码
 2. 模型参数可在 `process2.py` 中调整
 3. 可视化结果会自动保存在输出目录
+
+## Docker运行说明
+
+### 方式一：直接使用预构建镜像
+
+```bash
+# 拉取最新版本镜像
+docker pull ghcr.io/你的GitHub用户名/weibo-sentiment-analysis-lstm:latest
+
+# 创建必要的目录
+mkdir -p data/input data/output logs/tensorboard
+
+# 运行容器
+docker run -v $(pwd)/data:/app/data -v $(pwd)/logs:/app/logs ghcr.io/你的GitHub用户名/weibo-sentiment-analysis-lstm:latest
+```
+
+### 方式二：本地构建（参考上面的Docker运行说明）
+
+## 版本发布流程
+
+1. 创建新的版本标签：
+```bash
+git tag -a v1.0.0 -m "发布1.0.0版本"
+git push origin v1.0.0
+```
+
+2. 推送标签后，GitHub Actions会自动：
+   - 构建Docker镜像
+   - 发布到GitHub Container Registry
+   - 生成以下标签：
+     - `v1.0.0`：完整版本号
+     - `v1.0`：主次版本号
+     - `latest`：最新版本
+
+3. 镜像构建完成后，可以在GitHub Packages中查看：
+   - 访问 `https://github.com/你的用户名/weibo-sentiment-analysis-lstm/pkgs/container/weibo-sentiment-analysis-lstm`
