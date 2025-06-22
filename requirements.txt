@@ -44,4 +44,4 @@ typing-inspection==0.4.1
 typing_extensions==4.14.0
 tzdata==2025.2
 wheel==0.45.1
-tensorflow>=2.15.0
+tensorflow[and-cuda]==2.16.1
