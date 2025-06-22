@@ -36,6 +36,7 @@ def configure_matplotlib_fonts():
                 font_found = True
                 break
         except Exception as e:
+            logger.error(traceback.format_exc())
             logger.warning(f"设置字体 {font_name} 失败: {str(e)}")
 
     if not font_found:
