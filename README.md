@@ -194,6 +194,7 @@ docker run -v $(pwd)/data:/app/data -v $(pwd)/logs:/app/logs ghcr.io/你的GitHu
 ## 版本发布流程
 
 1. 创建新的版本标签：
+
 ```bash
 git tag -a v1.0.0 -m "发布1.0.0版本"
 git push origin v1.0.0
@@ -209,3 +210,100 @@ git push origin v1.0.0
 
 3. 镜像构建完成后，可以在GitHub Packages中查看：
    - 访问 `https://github.com/你的用户名/weibo-sentiment-analysis-lstm/pkgs/container/weibo-sentiment-analysis-lstm`
+
+# 微博情感分析 LSTM 模型 - 单机训练指南
+
+本文档为项目的标准 README，详细介绍了如何在**单机环境（CPU 或单张 GPU）**下，进行微博情感分析 LSTM 模型的训练与评估。
+
+> 针对多 GPU 服务器环境的部署与优化，请参考 `README-SERVER.md`。
+
+---
+
+## 1. 快速开始
+
+### 1.1 环境要求
+
+- **硬件**: 普通 PC 或带单张 GPU 的工作站
+- **软件**:
+  - Conda (或 Miniconda)
+  - Git
+
+### 1.2 环境设置与安装
+
+1. **克隆项目代码**
+
+    ```bash
+    git clone <your-repository-url>
+    cd weibo-sentiment-analysis-lstm
+    ```
+
+2. **创建并激活 Conda 虚拟环境**
+
+    ```bash
+    # 创建一个名为 "weibo-sentiment-analysis-lstm-py310" 的新环境
+    conda create --name weibo-sentiment-analysis-lstm-py310 python=3.10 -y
+
+    # 激活新创建的环境
+    conda activate weibo-sentiment-analysis-lstm-py310
+
+    # 安装所有依赖
+    # 如果您有 NVIDIA GPU，请确保已安装对应的 CUDA Toolkit，然后安装 tensorflow-gpu
+    # pip install tensorflow-gpu
+    pip install -r requirements.txt
+    ```
+
+3. **准备数据**
+    请确保您的数据集 (`all_utf8.csv` 或 `weibo_senti_100k.csv`) 位于 `data/input/` 目录下。
+
+### 1.3 执行训练
+
+**在激活虚拟环境后，运行以下命令即可启动训练和评估流程：**
+
+```bash
+# `src/main.py` 是为单机环境设计的入口
+python src/main.py
+```
+
+---
+
+## 2. 工作流程与模型架构
+
+### 2.1 工作流程
+
+脚本 `src/main.py` (内部调用 `src/process2.py` 的逻辑) 将会执行一个完整的端到端任务，具体流程如下：
+
+```mermaid
+graph TD
+    A["开始: 执行 python src/main.py"] --> B["加载和预处理数据"];
+    B --> C["创建 LSTM 模型"];
+    C --> D["训练模型 (fit)"];
+    D --> E{"保存最佳模型"};
+    E --> F["加载最佳模型"];
+    F --> G["评估模型性能"];
+    G --> H["输出分类报告和示例"];
+    H --> I["结束"];
+```
+
+### 2.2 模型架构
+
+单机版模型经过精心设计，以在有限的计算资源下获得良好的性能。其具体结构如下：
+
+```mermaid
+graph TD
+    Input["输入文本序列"] --> Embedding["Embedding (dim=100)"];
+    Embedding --> BN0["Batch Normalization"];
+    BN0 --> LSTM1["LSTM (units=128, return_sequences=True)"];
+    LSTM1 --> Dropout1["Dropout (rate=0.3)"];
+    Dropout1 --> LSTM2["LSTM (units=64)"];
+    LSTM2 --> Dropout2["Dropout (rate=0.3)"];
+    Dropout2 --> BN1["Batch Normalization"];
+    BN1 --> Dense1["Dense (units=32, activation='relu')"];
+    Dense1 --> Dropout3["Dropout (rate=0.3)"];
+    Dropout3 --> Output["Dense (units=2, activation='softmax')"];
+```
+
+- **Embedding 层**: 将输入的字符索引转换为密集的词向量。
+- **Batch Normalization**: 在输入到 LSTM 前进行批归一化，稳定数据分布。
+- **双层 LSTM**: 两层 LSTM 堆叠，用于捕捉文本中的长距离依赖关系和复杂的序列模式。
+- **Dropout**: 在 LSTM 和全连接层后加入，以防止模型过拟合。
+- **Dense 层**: 最终通过一个带有 Softmax 激活函数的全连接层输出分类概率。
