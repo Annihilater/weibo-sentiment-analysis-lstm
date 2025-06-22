@@ -13,9 +13,49 @@ from sklearn.model_selection import train_test_split
 from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint, EarlyStopping
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.utils import plot_model
+import tensorflow as tf
 
 from src.config import settings
 from src.logger import logger
+
+
+def check_gpu_availability():
+    """
+    检查GPU可用性并输出相关信息
+    """
+    logger.info("检查GPU可用性...")
+    
+    # 检查TensorFlow版本
+    logger.info(f"TensorFlow版本: {tf.__version__}")
+    
+    # 检查GPU设备
+    physical_devices = tf.config.list_physical_devices('GPU')
+    if physical_devices:
+        logger.info(f"发现 {len(physical_devices)} 个GPU设备:")
+        for i, device in enumerate(physical_devices):
+            logger.info(f"  GPU {i}: {device}")
+        
+        # 设置GPU内存增长
+        try:
+            for gpu in physical_devices:
+                tf.config.experimental.set_memory_growth(gpu, True)
+            logger.info("已启用GPU内存动态增长")
+        except Exception as e:
+            logger.warning(f"设置GPU内存增长失败: {e}")
+    else:
+        logger.warning("未检测到GPU设备，将使用CPU进行训练")
+        logger.info("如需使用GPU，请确保:")
+        logger.info("1. CUDA工具包已正确安装")
+        logger.info("2. 环境变量CUDA_HOME和LD_LIBRARY_PATH已设置")
+        logger.info("3. TensorFlow-GPU已正确安装")
+    
+    # 检查CUDA构建
+    if tf.test.is_built_with_cuda():
+        logger.info("TensorFlow支持CUDA")
+    else:
+        logger.warning("TensorFlow不支持CUDA")
+    
+    return len(physical_devices) > 0
 
 
 def process_text(args: Tuple[str, Dict[str, int]]) -> List[int]:
@@ -189,6 +229,13 @@ def model_train(input_shape: int, filepath: str, model_save_path: str):
     logger.info(f"开始训练模型，输入序列长度: {input_shape}")
     logger.info(f"数据集路径: {filepath}")
     logger.info(f"模型保存路径: {model_save_path}")
+    
+    # 检查GPU可用性
+    gpu_available = check_gpu_availability()
+    if gpu_available:
+        logger.info("将使用GPU进行训练")
+    else:
+        logger.info("将使用CPU进行训练")
 
     logger.info("开始加载数据...")
     x, y, output_dictionary, vocab_size, label_size, inverse_word_dictionary = (
