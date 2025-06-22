@@ -10,6 +10,7 @@ mkdir -p data/output
 # 屏蔽 macOS 的输入法调试信息
 export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
 export PYTHON_IGNORE_DEPRECATION=1
+export PYTHONPATH=$(pwd):$PYTHONPATH
 
 python -m src.main
 
