@@ -5,6 +5,7 @@
 
 import os
 import sys
+import traceback
 
 # 在导入TensorFlow之前设置GPU内存增长
 os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"
@@ -415,9 +416,14 @@ def train_with_multi_gpu(
     # 保存模型结构图
     try:
         logger.info("保存模型结构图...")
-        tf.keras.utils.plot_model(model, to_file="./model_lstm.png", show_shapes=True)
-        logger.info("模型结构图已保存到 ./model_lstm.png")
+        tf.keras.utils.plot_model(
+            model,
+            to_file=f"{settings.OUTPUT_DIR_PATH}/model_lstm.png",
+            show_shapes=True,
+        )
+        logger.info(f"模型结构图已保存到 {settings.OUTPUT_DIR_PATH}/model_lstm.png")
     except Exception as e:
+        logger.error(traceback.format_exc())
         logger.warning(f"保存模型结构图失败: {e}")
 
     # 输出模型信息
@@ -616,6 +622,7 @@ def train_with_multi_gpu(
         logger.info(f"训练和评估报告已成功保存到: {csv_path}")
 
     except Exception as e:
+        logger.error(traceback.format_exc())
         logger.error(f"保存报告到CSV失败: {e}", exc_info=True)
 
     return history
@@ -633,8 +640,8 @@ def main():
 
         # 检查数据文件
         data_file = None
-        if os.path.exists("data/input/all_utf8.csv"):
-            data_file = "data/input/all_utf8.csv"
+        if os.path.exists(f"{settings.INPUT_DATA_FILE_PATH}"):
+            data_file = settings.INPUT_DATA_FILE_PATH
             logger.info(f"使用数据文件: {data_file}")
         elif os.path.exists("data/weibo_senti_100k.csv"):
             data_file = "data/weibo_senti_100k.csv"
@@ -646,7 +653,7 @@ def main():
         # 创建输出目录
         os.makedirs("models", exist_ok=True)
         os.makedirs("logs/tensorboard", exist_ok=True)
-        os.makedirs("data/output", exist_ok=True)
+        os.makedirs(settings.DATA_DIR_PATH, exist_ok=True)
 
         # 开始训练
         history = train_with_multi_gpu(
@@ -660,6 +667,7 @@ def main():
         logger.info("训练过程完成")
 
     except Exception as e:
+        logger.error(traceback.format_exc())
         logger.error(f"训练过程中发生错误: {e}")
         logger.error("详细错误信息: ", exc_info=True)
     finally:
