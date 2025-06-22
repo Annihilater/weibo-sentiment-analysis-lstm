@@ -1,4 +1,5 @@
 import platform
+import traceback
 from itertools import accumulate
 
 import matplotlib.font_manager as font_manager

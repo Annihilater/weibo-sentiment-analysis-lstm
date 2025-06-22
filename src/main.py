@@ -1,7 +1,7 @@
 from src.config import settings
 from src.data_processing.clean_data import DataCleaner
 from src.process import get_data
-from src.process2 import model_train
+from src.train_and_evaluation import model_train
 
 
 def clean_data():

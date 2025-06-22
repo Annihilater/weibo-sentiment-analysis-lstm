@@ -49,7 +49,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.config import settings
 from src.logger import logger
-from src.process2 import load_data
+from src.train_and_evaluation import load_data
 from src.server_config import ServerConfig
 
 
