@@ -6,16 +6,59 @@ echo "=========================================="
 echo "微博情感分析LSTM - 服务器启动脚本（GPU版）"
 echo "=========================================="
 
-# 服务器配置信息
-echo "服务器配置:"
-echo "- GPU: 7x RTX 4090 (176.2GB显存)"
-echo "- CPU: 112核 AMD EPYC 9354"
-echo "- 内存: 420.9GB"
-echo "- 硬盘: 5.3TB"
+# 动态检测硬件配置
+echo "正在检测服务器硬件配置..."
+
+# 检查 nvidia-smi 是否可用
+if ! command -v nvidia-smi &> /dev/null
+then
+    echo "警告: nvidia-smi 命令未找到。无法检测 GPU 信息。"
+    GPU_COUNT=0
+else
+    # 获取 GPU 数量
+    GPU_COUNT=$(nvidia-smi -L | wc -l)
+    # 获取 GPU 型号 (假设所有 GPU 型号相同)
+    GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n 1)
+    # 获取单个 GPU 的总显存 (以 MiB 为单位)
+    GPU_MEM_PER_CARD_MB=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | head -n 1)
+    # 计算总显存 (以 GB 为单位)
+    TOTAL_GPU_MEM_GB=$(awk "BEGIN {printf \"%.1f\", $GPU_COUNT * $GPU_MEM_PER_CARD_MB / 1024}")
+fi
+
+# 获取 CPU 核心数
+CPU_CORES=$(nproc)
+# 获取 CPU 型号
+CPU_NAME=$(grep "model name" /proc/cpuinfo | uniq | cut -d ':' -f 2- | sed 's/^[ \t]*//' || echo "未知")
+# 获取总内存 (以 GB 为单位)
+TOTAL_RAM_GB=$(awk '/MemTotal/ {printf "%.1f", $2/1024/1024}' /proc/meminfo)
+# 获取根目录总磁盘空间
+TOTAL_DISK_GB=$(df -h / | awk 'NR==2 {print $2}')
+
+# 动态生成服务器配置信息
+echo "=========================================="
+echo "服务器配置 (自动检测):"
+if [ "$GPU_COUNT" -gt 0 ]; then
+    echo "- GPU: ${GPU_COUNT}x ${GPU_NAME} (${TOTAL_GPU_MEM_GB}GB 显存)"
+else
+    echo "- GPU: 未检测到或不可用"
+fi
+echo "- CPU: ${CPU_CORES}核 ${CPU_NAME}"
+echo "- 内存: ${TOTAL_RAM_GB}GB"
+echo "- 硬盘 (根分区): ${TOTAL_DISK_GB}"
 echo "=========================================="
 
-# 设置环境变量
-export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6  # 使用7张GPU中的前6张
+# 动态设置要使用的GPU并导出环境变量
+if [ "$GPU_COUNT" -gt 0 ]; then
+    # 生成逗号分隔的 GPU 索引列表 (例如: 0,1,2,3)
+    ALL_GPUS=$(seq -s, 0 $((GPU_COUNT - 1)))
+    export CUDA_VISIBLE_DEVICES=${ALL_GPUS}
+    echo "已自动设置环境变量: CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES}"
+else
+    # 如果没有GPU，则取消设置该变量
+    unset CUDA_VISIBLE_DEVICES
+    echo "未检测到GPU，不设置 CUDA_VISIBLE_DEVICES"
+fi
+
 export TF_FORCE_GPU_ALLOW_GROWTH=true  # 允许GPU内存动态增长
 export TF_CPP_MIN_LOG_LEVEL=0  # 显示所有日志
 
