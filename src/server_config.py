@@ -95,12 +95,12 @@ class ServerConfig:
         """
         # 检查是否有可用的GPU设备
         physical_devices = tf.config.list_physical_devices("GPU")
-        
+
         # 如果没有GPU设备，返回None而不是使用MirroredStrategy
         if len(physical_devices) == 0:
             logger.info("未检测到GPU设备，不使用分布式策略")
             return None
-            
+
         if self.DISTRIBUTION_STRATEGY == "MirroredStrategy":
             try:
                 # 使用cross_device_ops参数，指定通信方式
@@ -195,11 +195,13 @@ class ServerConfig:
         os.environ["TF_GPU_ALLOCATOR"] = "cuda_malloc_async"
         os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"
         os.environ["OMP_NUM_THREADS"] = str(self.CPU_THREADS)
-        
+
         # 设置CUDA环境变量
         if "CUDA_VISIBLE_DEVICES" not in os.environ:
             # 如果没有设置，默认使用所有GPU
-            os.environ["CUDA_VISIBLE_DEVICES"] = ",".join([str(i) for i in range(self.GPU_COUNT)])
+            os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(
+                [str(i) for i in range(self.GPU_COUNT)]
+            )
 
         # 配置GPU
         if not self.configure_gpu_environment():
