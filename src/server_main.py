@@ -6,8 +6,22 @@
 import os
 import sys
 
-import numpy as np
+# 在导入TensorFlow之前设置GPU内存增长
+os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = "true"
+
 import tensorflow as tf
+
+# 在导入其他模块前设置GPU内存增长
+gpus = tf.config.experimental.list_physical_devices("GPU")
+if gpus:
+    try:
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+        print("已启用GPU内存动态增长")
+    except RuntimeError as e:
+        print(f"设置GPU内存增长失败: {e}")
+
+import numpy as np
 from sklearn.metrics import classification_report
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.callbacks import (
@@ -27,17 +41,82 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.utils import plot_model
 
+# 添加项目根目录到Python路径
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from src.config import settings
 from src.logger import logger
 from src.process2 import load_data
 from src.server_config import ServerConfig
 
-# 添加项目根目录到Python路径
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+class WarmupCosineDecay(tf.keras.optimizers.schedules.LearningRateSchedule):
+    """
+    带预热的余弦衰减学习率调度器
+    """
+    def __init__(
+        self,
+        initial_lr: float,
+        target_lr: float,
+        warmup_steps: int,
+        decay_steps: int
+    ):
+        """
+        初始化学习率调度器
+        :param initial_lr: 初始学习率
+        :param target_lr: 目标学习率（预热后的最大学习率）
+        :param warmup_steps: 预热步数
+        :param decay_steps: 总步数
+        """
+        super().__init__()
+        self.initial_lr = initial_lr
+        self.target_lr = target_lr
+        self.warmup_steps = warmup_steps
+        self.decay_steps = decay_steps
+
+    def __call__(self, step):
+        """
+        计算当前步数的学习率
+        :param step: 当前训练步数
+        :return: 学习率
+        """
+        # 转换为浮点数
+        step = tf.cast(step, tf.float32)
+        warmup_steps = tf.cast(self.warmup_steps, tf.float32)
+        decay_steps = tf.cast(self.decay_steps, tf.float32)
+
+        # 预热阶段
+        warmup_progress = tf.minimum(1.0, step / warmup_steps)
+        warmup_lr = self.initial_lr + (self.target_lr - self.initial_lr) * warmup_progress
+
+        # 余弦衰减阶段
+        decay_progress = tf.maximum(0.0, step - warmup_steps) / (decay_steps - warmup_steps)
+        decay_factor = 0.5 * (1.0 + tf.cos(tf.constant(np.pi) * decay_progress))
+        decay_lr = self.target_lr * decay_factor
+
+        # 使用tf.where选择当前阶段的学习率
+        return tf.where(step < warmup_steps, warmup_lr, decay_lr)
+
+    def get_config(self):
+        """
+        获取配置信息
+        :return: 配置字典
+        """
+        return {
+            "initial_lr": self.initial_lr,
+            "target_lr": self.target_lr,
+            "warmup_steps": self.warmup_steps,
+            "decay_steps": self.decay_steps,
+        }
 
 
 def create_lstm(
-    n_units: int, input_shape: int, output_dim: int, vocab_size: int, label_size: int
+    n_units: int,
+    input_shape: int,
+    output_dim: int,
+    vocab_size: int,
+    label_size: int,
+    learning_rate: float = 0.0001,
 ) -> tf.keras.Model:
     """
     创建深度学习模型，Embedding + LSTM + Softmax
@@ -46,6 +125,7 @@ def create_lstm(
     :param output_dim: Embedding层输出维度
     :param vocab_size: 词汇表大小
     :param label_size: 标签类别数
+    :param learning_rate: 学习率
     :return: 编译好的模型
     """
     # 使用Sequential模型构建网络
@@ -57,44 +137,71 @@ def create_lstm(
                 output_dim=output_dim,
                 input_length=input_shape,
                 mask_zero=True,
+                embeddings_regularizer=tf.keras.regularizers.l2(1e-5),  # 添加L2正则化
             ),
-            # BatchNormalization层
-            tf.keras.layers.BatchNormalization(),
             # 第一个LSTM层，返回序列
-            tf.keras.layers.LSTM(n_units, return_sequences=True),
+            tf.keras.layers.LSTM(
+                n_units,
+                return_sequences=True,
+                kernel_regularizer=tf.keras.regularizers.l2(1e-5),  # 添加L2正则化
+                recurrent_regularizer=tf.keras.regularizers.l2(1e-5),
+            ),
+            tf.keras.layers.BatchNormalization(),
             tf.keras.layers.Dropout(0.3),
             # 第二个LSTM层
-            tf.keras.layers.LSTM(n_units // 2),
-            tf.keras.layers.Dropout(0.3),
+            tf.keras.layers.LSTM(
+                n_units // 2,
+                kernel_regularizer=tf.keras.regularizers.l2(1e-5),
+                recurrent_regularizer=tf.keras.regularizers.l2(1e-5),
+            ),
             tf.keras.layers.BatchNormalization(),
+            tf.keras.layers.Dropout(0.3),
             # 全连接层
-            tf.keras.layers.Dense(n_units // 4, activation="relu"),
+            tf.keras.layers.Dense(
+                n_units // 4,
+                activation="relu",
+                kernel_regularizer=tf.keras.regularizers.l2(1e-5),
+            ),
+            tf.keras.layers.BatchNormalization(),
             tf.keras.layers.Dropout(0.3),
             # 输出层
-            tf.keras.layers.Dense(label_size, activation="softmax"),
+            tf.keras.layers.Dense(
+                label_size,
+                activation="softmax",
+                kernel_regularizer=tf.keras.regularizers.l2(1e-5),
+            ),
         ]
     )
 
-    # 使用Adam优化器，设置较小的学习率
-    optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
+    # 使用Adam优化器，设置学习率
+    optimizer = tf.keras.optimizers.Adam(
+        learning_rate=learning_rate,
+        beta_1=0.9,
+        beta_2=0.999,
+        epsilon=1e-7,  # 默认值，通常不需要调整
+        amsgrad=True,  # 启用AMSGrad变体
+    )
 
     # 编译模型
     model.compile(
-        optimizer=optimizer, loss="categorical_crossentropy", metrics=["accuracy"]
+        optimizer=optimizer,
+        loss="categorical_crossentropy",
+        metrics=[
+            "accuracy",
+            tf.keras.metrics.Precision(),
+            tf.keras.metrics.Recall(),
+        ],
     )
-
-    # 输出模型信息
-    model.summary()
 
     return model
 
 
 def train_with_multi_gpu(
-    input_shape: int = 180,  # 修改为与process2.py一致的输入序列长度
+    input_shape: int = 180,
     filepath: str = None,
     model_save_path: str = None,
-    epochs: int = 15,  # 增加训练轮数
-    batch_size: int = 256,  # 使用与process2.py相同的批次大小
+    epochs: int = 15,
+    batch_size: int = 64,  # 降低单GPU的批次大小
 ):
     """
     使用多GPU训练模型
@@ -102,7 +209,7 @@ def train_with_multi_gpu(
     :param filepath: 数据集路径
     :param model_save_path: 模型保存路径
     :param epochs: 训练轮数
-    :param batch_size: 批次大小
+    :param batch_size: 每个GPU的批次大小
     :return: (训练历史, 测试集准确率)
     """
     logger.info("开始多GPU训练...")
@@ -114,26 +221,16 @@ def train_with_multi_gpu(
 
     # 检查可用GPU
     gpus = tf.config.list_physical_devices("GPU")
-    if gpus:
-        logger.info(f"可用GPU数量: {len(gpus)}")
-        for i, gpu in enumerate(gpus):
-            logger.info(f"  GPU {i}: {gpu.name}")
-    else:
-        logger.warning("未检测到可用GPU，将使用CPU训练")
+    gpu_count = len(gpus) if gpus else 1
+    logger.info(f"可用GPU数量: {gpu_count}")
 
-    # 设置每个GPU的内存增长
-    for gpu in gpus:
-        try:
-            tf.config.experimental.set_memory_growth(gpu, True)
-            logger.info(f"已为 {gpu.name} 启用内存增长")
-        except Exception as e:
-            logger.warning(f"为 {gpu.name} 设置内存增长失败: {e}")
-
-    # 确保TensorFlow能够看到GPU
-    if len(tf.config.list_physical_devices("GPU")) > 0:
-        logger.info("TensorFlow可以访问GPU")
-    else:
-        logger.warning("TensorFlow无法访问GPU，请检查CUDA和cuDNN安装")
+    # 根据GPU数量调整学习率和批次大小
+    base_lr = 1e-4  # 基础学习率
+    target_lr = base_lr * (gpu_count**0.5)  # 根据GPU数量调整目标学习率
+    initial_lr = target_lr / 10  # 预热起始学习率
+    global_batch_size = batch_size * gpu_count
+    logger.info(f"全局批次大小: {global_batch_size} (单GPU: {batch_size})")
+    logger.info(f"初始学习率: {initial_lr:.6f}, 目标学习率: {target_lr:.6f}")
 
     # 加载训练数据
     logger.info("加载训练数据...")
@@ -166,11 +263,20 @@ def train_with_multi_gpu(
     logger.info(f"训练集大小: {len(train_x)}")
     logger.info(f"测试集大小: {len(test_x)}")
 
-    # 根据GPU数量调整全局批次大小
-    gpu_count = len(tf.config.list_physical_devices("GPU"))
-    # 根据GPU数量调整全局批次大小
-    global_batch_size = batch_size * max(1, gpu_count)
-    logger.info(f"全局批次大小: {global_batch_size} (单GPU: {batch_size})")
+    # 计算总步数和预热步数
+    steps_per_epoch = len(train_x) // global_batch_size
+    warmup_epochs = 3
+    total_epochs = epochs
+    warmup_steps = steps_per_epoch * warmup_epochs
+    total_steps = steps_per_epoch * total_epochs
+
+    # 创建学习率调度器
+    lr_schedule = WarmupCosineDecay(
+        initial_lr=initial_lr,
+        target_lr=target_lr,
+        warmup_steps=warmup_steps,
+        decay_steps=total_steps
+    )
 
     # 模型配置
     model_config = {
@@ -178,7 +284,7 @@ def train_with_multi_gpu(
         "embedding_dim": 100,  # Embedding维度
         "dropout_rate": 0.3,  # Dropout比率
         "recurrent_dropout_rate": 0.0,  # 循环Dropout比率
-        "learning_rate": 0.0001,  # 学习率
+        "learning_rate": lr_schedule,  # 使用学习率调度器
     }
 
     # 处理数据，确保批次大小能被GPU数量整除
@@ -215,6 +321,7 @@ def train_with_multi_gpu(
             model_config["embedding_dim"],
             vocab_size,
             label_size,
+            model_config["learning_rate"],
         )
 
         # 手动构建模型，确保模型参数被初始化
@@ -239,6 +346,7 @@ def train_with_multi_gpu(
                 model_config["embedding_dim"],
                 vocab_size,
                 label_size,
+                model_config["learning_rate"],
             )
 
             # 手动构建模型，确保模型参数被初始化
@@ -281,7 +389,8 @@ def train_with_multi_gpu(
         tf.keras.callbacks.TensorBoard(
             log_dir="./logs/tensorboard",
             histogram_freq=1,
-            update_freq="batch",  # 实时更新训练指标
+            update_freq="batch",
+            profile_batch=0,  # 禁用性能分析以减少内存使用
         ),
         tf.keras.callbacks.ModelCheckpoint(
             filepath=model_save_path,
@@ -292,17 +401,18 @@ def train_with_multi_gpu(
         ),
         tf.keras.callbacks.EarlyStopping(
             monitor="val_loss",
-            patience=5,  # 增加耐心值
+            patience=7,  # 增加耐心值，给模型更多机会
             verbose=1,
-            restore_best_weights=True,  # 恢复最佳权重
+            restore_best_weights=True,
+            min_delta=1e-4,  # 添加最小改善阈值
         ),
-        # 添加学习率调度器
         tf.keras.callbacks.ReduceLROnPlateau(
             monitor="val_loss",
             factor=0.5,
-            patience=2,
+            patience=3,
             verbose=1,
-            min_lr=1e-6,
+            min_lr=target_lr / 100,  # 设置最小学习率
+            min_delta=1e-4,  # 添加最小改善阈值
         ),
     ]
 
@@ -414,7 +524,7 @@ def main():
             filepath=data_file,
             model_save_path=settings.MODEL_SAVE_FILE_PATH,
             epochs=15,
-            batch_size=256,
+            batch_size=64,
         )
 
         logger.info(f"训练完成，最终准确率: {accuracy:.4f}")
