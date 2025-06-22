@@ -1,5 +1,7 @@
 from src.config import settings
 from src.data_processing.clean_data import DataCleaner
+from src.process import get_data
+from src.process2 import model_train
 
 
 def clean_data():
@@ -18,7 +20,14 @@ def main():
     """
     主函数，基于机器学习的微博情感分析可视化系统
     """
-    pass
+    get_data()
+
+    input_shape = 180
+    model_train(
+        input_shape=input_shape,
+        filepath=settings.INPUT_DIR_PATH,
+        model_save_path=settings.MODEL_SAVE_FILE_PATH,
+    )
 
 
 if __name__ == "__main__":
