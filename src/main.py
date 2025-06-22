@@ -2,9 +2,9 @@ from src.config import settings
 from src.data_processing.clean_data import DataCleaner
 
 
-def main():
+def clean_data():
     """
-    主函数，用于执行数据清洗
+    数据清洗
     """
     input_file = settings.INPUT_DIR_PATH
     output_file = settings.OUTPUT_DIR_PATH
@@ -14,5 +14,13 @@ def main():
     cleaner.detect_encoding()
 
 
+def main():
+    """
+    主函数，基于机器学习的微博情感分析可视化系统
+    """
+    pass
+
+
 if __name__ == "__main__":
+    # clean_data()
     main()
