@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     OUTPUT_DIR_PATH: Optional[str] = Field(
         default="data/output", description="数据目录路径的输出目录"
     )
+    MODEL_SAVE_FILE_PATH: Optional[str] = Field(
+        default="data/output/lstm_model.h5", description="模型保存路径"
+    )
+    PREDICT_RESULT_FILE_PATH: Optional[str] = Field(
+        default="data/output/predict_result.csv", description="预测结果保存路径"
+    )
 
     # 应用配置
     DEBUG: Optional[bool] = Field(default=False, description="是否开启调试模式")
