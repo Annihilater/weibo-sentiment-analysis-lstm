@@ -5,8 +5,8 @@ import pandas as pd
 from keras.layers import LSTM, Dense, Embedding, Dropout
 from keras.models import Sequential
 from keras.preprocessing.sequence import pad_sequences
-from keras.utils import np_utils
-from keras.utils.vis_utils import plot_model
+from keras.utils import to_categorical
+from tensorflow.keras.utils import plot_model
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 
@@ -53,7 +53,7 @@ def load_data(filepath: str, input_shape: int = 20):
     x = pad_sequences(maxlen=input_shape, sequences=x, padding="post", value=0)
     y = [[label_dictionary[sent]] for sent in df["label"]]
     """
-    np_utils.to_categorical用于将标签转化为形如(nb_samples, nb_classes)
+    to_categorical用于将标签转化为形如(nb_samples, nb_classes)
     的二值序列。
     假设num_classes = 10。
     如将[1, 2, 3,……4]转化成：
@@ -63,7 +63,7 @@ def load_data(filepath: str, input_shape: int = 20):
     ……
     [0, 0, 0, 0, 1, 0, 0, 0]]
     """
-    y = [np_utils.to_categorical(label, num_classes=label_size) for label in y]
+    y = [to_categorical(label, num_classes=label_size) for label in y]
     y = np.array([list(_[0]) for _ in y])
 
     return x, y, output_dictionary, vocab_size, label_size, inverse_word_dictionary
