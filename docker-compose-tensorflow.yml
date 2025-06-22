@@ -1,0 +1,38 @@
+version: "3.8"
+
+services:
+  weibo-sentiment-tensorflow:
+    image: tensorflow/tensorflow:latest-gpu
+    container_name: weibo-sentiment-tensorflow
+    volumes:
+      - ./:/workspace
+      - ./data:/workspace/data
+      - ./logs:/workspace/logs
+    working_dir: /workspace
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TF_CPP_MIN_LOG_LEVEL=1 # 减少TensorFlow日志输出
+      - CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 # 使用所有8张GPU
+    deploy:
+      resources:
+        limits:
+          memory: 32G # 限制内存使用
+        reservations:
+          memory: 16G # 预留内存
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    command: >
+      bash -c "
+        pip install -r requirements.txt &&
+        python src/main.py
+      "
+    tty: true
+    stdin_open: true
+    networks:
+      - default
+
+networks:
+  default:
+    driver: bridge
