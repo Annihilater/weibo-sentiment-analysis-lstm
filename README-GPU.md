@@ -49,23 +49,23 @@
 
 ```bash
 # 启动GPU训练
-docker-compose -f docker-compose-tensorflow.yml up --build
+docker compose -f docker docker-compose-tensorflow.yml up --build
 
 # 后台运行
-docker-compose -f docker-compose-tensorflow.yml up --build -d
+docker compose -f docker docker-compose-tensorflow.yml up --build -d
 
 # 查看日志
-docker-compose -f docker-compose-tensorflow.yml logs -f
+docker compose -f docker docker-compose-tensorflow.yml logs -f
 
 # 停止服务
-docker-compose -f docker-compose-tensorflow.yml down
+docker compose -f docker docker-compose-tensorflow.yml down
 ```
 
 ### 方式3：交互式运行
 
 ```bash
 # 启动容器并进入交互模式
-docker-compose -f docker-compose-tensorflow.yml run --rm weibo-sentiment-tensorflow bash
+docker compose -f docker docker-compose-tensorflow.yml run --rm weibo-sentiment-tensorflow bash
 
 # 在容器内手动运行
 pip install -r requirements.txt
@@ -107,10 +107,10 @@ docker exec -it weibo-sentiment-tensorflow nvidia-smi
 
 ```bash
 # 实时查看日志
-docker-compose -f docker-compose-tensorflow.yml logs -f weibo-sentiment-tensorflow
+docker compose -f docker docker-compose-tensorflow.yml logs -f weibo-sentiment-tensorflow
 
 # 查看TensorBoard
-docker-compose -f docker-compose-tensorflow.yml exec weibo-sentiment-tensorflow tensorboard --logdir=/workspace/logs/tensorboard --host=0.0.0.0 --port=6006
+docker compose -f docker docker-compose-tensorflow.yml exec weibo-sentiment-tensorflow tensorboard --logdir=/workspace/logs/tensorboard --host=0.0.0.0 --port=6006
 ```
 
 ## 故障排除
@@ -128,7 +128,7 @@ docker-compose -f docker-compose-tensorflow.yml exec weibo-sentiment-tensorflow 
 
 2. **内存不足**
    - 减少batch_size
-   - 调整docker-compose中的内存限制
+   - 调整docker compose中的内存限制
    - 使用单GPU训练
 
 3. **权限问题**

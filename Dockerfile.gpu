@@ -1,0 +1,48 @@
+# 基于TensorFlow GPU镜像构建自定义基础镜像
+FROM tensorflow/tensorflow:latest-gpu
+
+# 设置工作目录
+WORKDIR /workspace
+
+# 设置环境变量
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    TZ=Asia/Shanghai \
+    PYTHONPATH=/workspace \
+    CUDA_HOME=/usr/local/cuda-12.3 \
+    PATH=/usr/local/cuda-12.3/bin:$PATH \
+    LD_LIBRARY_PATH=/usr/local/cuda-12.3/lib64:/usr/local/cuda-12.3/targets/x86_64-linux/lib:/usr/lib/x86_64-linux-gnu:/usr/local/nvidia/lib:/usr/local/nvidia/lib64:$LD_LIBRARY_PATH
+
+# 更换为国内软件源
+RUN sed -i 's@http://.*archive.ubuntu.com@https://mirrors.tuna.tsinghua.edu.cn@g' /etc/apt/sources.list && \
+    sed -i 's@http://.*security.ubuntu.com@https://mirrors.tuna.tsinghua.edu.cn@g' /etc/apt/sources.list && \
+    rm -rf /etc/apt/sources.list.d/deadsnakes-ubuntu-ppa-jammy.list* || true
+
+# 安装系统依赖
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    graphviz \
+    && rm -rf /var/lib/apt/lists/*
+
+# 复制requirements.txt并安装Python依赖
+COPY requirements.txt /workspace/
+RUN pip install --no-cache-dir \
+    pydot \
+    graphviz \
+    -r requirements.txt \
+    -i https://pypi.tuna.tsinghua.edu.cn/simple/ \
+    --trusted-host pypi.tuna.tsinghua.edu.cn
+
+# 创建必要的目录
+RUN mkdir -p /workspace/data/input \
+             /workspace/data/output \
+             /workspace/logs/tensorboard
+
+# 验证GPU库链接
+RUN echo "验证CUDA库链接..." && \
+    ldconfig && \
+    echo "CUDA库路径验证完成"
+
+# 设置默认命令
+CMD ["python", "src/main.py"] 
