@@ -4,9 +4,18 @@
 """
 
 import os
+import traceback
 from typing import Dict, Any
 
+import psutil
 import tensorflow as tf
+from tensorflow.keras.callbacks import (
+    TensorBoard,
+    ModelCheckpoint,
+    EarlyStopping,
+    ReduceLROnPlateau,
+    CSVLogger,
+)
 
 from src.logger import logger
 
@@ -61,6 +70,7 @@ class ServerConfig:
                 tf.config.experimental.set_memory_growth(gpu, True)
             logger.info("GPU内存动态增长已启用")
         except Exception as e:
+            logger.error(traceback.format_exc())
             logger.error(f"设置GPU内存增长失败: {e}")
             logger.warning("将尝试继续运行，但可能会遇到内存问题")
 
@@ -71,6 +81,7 @@ class ServerConfig:
                 tf.keras.mixed_precision.set_global_policy(policy)
                 logger.info("混合精度训练已启用")
             except Exception as e:
+                logger.error(traceback.format_exc())
                 logger.warning(f"启用混合精度训练失败: {e}")
 
         # 启用XLA加速
@@ -79,6 +90,7 @@ class ServerConfig:
                 tf.config.optimizer.set_jit(True)
                 logger.info("XLA加速已启用")
             except Exception as e:
+                logger.error(traceback.format_exc())
                 logger.warning(f"启用XLA加速失败: {e}")
 
         # 设置TensorFlow内部优化
@@ -112,6 +124,7 @@ class ServerConfig:
                 )
                 return strategy
             except Exception as e:
+                logger.error(traceback.format_exc())
                 logger.error(f"创建MirroredStrategy失败: {e}")
                 logger.warning("将使用默认策略")
                 return tf.distribute.get_strategy()
@@ -123,6 +136,7 @@ class ServerConfig:
                 )
                 return strategy
             except Exception as e:
+                logger.error(traceback.format_exc())
                 logger.error(f"创建MultiWorkerMirroredStrategy失败: {e}")
                 logger.warning("将使用默认策略")
                 return tf.distribute.get_strategy()
@@ -150,14 +164,6 @@ class ServerConfig:
         """
         获取训练回调函数
         """
-        from tensorflow.keras.callbacks import (
-            TensorBoard,
-            ModelCheckpoint,
-            EarlyStopping,
-            ReduceLROnPlateau,
-            CSVLogger,
-        )
-
         callbacks = [
             TensorBoard(
                 log_dir="./logs/tensorboard",
@@ -219,7 +225,6 @@ def get_server_info():
     """
     获取服务器信息
     """
-    import psutil
 
     info = {
         "cpu_count": psutil.cpu_count(),
