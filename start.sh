@@ -11,6 +11,6 @@ mkdir -p data/output
 export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
 export PYTHON_IGNORE_DEPRECATION=1
 
-python src/main.py
+python -m src.main
 
 echo "程序: 完成"
