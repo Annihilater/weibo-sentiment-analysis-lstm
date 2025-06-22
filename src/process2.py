@@ -1,5 +1,7 @@
 import multiprocessing
+import os
 import pickle
+import traceback
 from typing import Tuple, Dict, List
 
 import numpy as np
@@ -41,6 +43,7 @@ def check_gpu_availability():
                 tf.config.experimental.set_memory_growth(gpu, True)
             logger.info("已启用GPU内存动态增长")
         except Exception as e:
+            logger.error(traceback.format_exc())
             logger.warning(f"设置GPU内存增长失败: {e}")
     else:
         logger.warning("未检测到GPU设备，将使用CPU进行训练")
@@ -270,8 +273,6 @@ def model_train(input_shape: int, filepath: str, model_save_path: str):
     logger.info("开始训练模型...")
 
     # 确保日志目录存在
-    import os
-
     os.makedirs("./logs/tensorboard", exist_ok=True)
     os.makedirs(os.path.dirname(model_save_path), exist_ok=True)
 
