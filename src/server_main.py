@@ -22,7 +22,6 @@ if gpus:
         print(f"设置GPU内存增长失败: {e}")
 
 import numpy as np
-from sklearn.metrics import classification_report
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.callbacks import (
     TensorBoard,
@@ -50,16 +49,39 @@ from src.process2 import load_data
 from src.server_config import ServerConfig
 
 
+# 尝试获取合适的序列化装饰器
+def get_serializable_decorator():
+    """
+    获取适用于当前TensorFlow版本的序列化装饰器
+    """
+    # 尝试不同的导入路径
+    try:
+        from keras.saving import register_keras_serializable
+
+        return register_keras_serializable(package="Custom")
+    except ImportError:
+        try:
+            from tensorflow.keras.saving import register_keras_serializable
+
+            return register_keras_serializable(package="Custom")
+        except ImportError:
+            try:
+                from tensorflow.keras.utils import register_keras_serializable
+
+                return register_keras_serializable(package="Custom")
+            except ImportError:
+                logger.warning("无法找到register_keras_serializable，使用空装饰器")
+                return lambda x: x
+
+
+@get_serializable_decorator()
 class WarmupCosineDecay(tf.keras.optimizers.schedules.LearningRateSchedule):
     """
     带预热的余弦衰减学习率调度器
     """
+
     def __init__(
-        self,
-        initial_lr: float,
-        target_lr: float,
-        warmup_steps: int,
-        decay_steps: int
+        self, initial_lr: float, target_lr: float, warmup_steps: int, decay_steps: int
     ):
         """
         初始化学习率调度器
@@ -87,10 +109,14 @@ class WarmupCosineDecay(tf.keras.optimizers.schedules.LearningRateSchedule):
 
         # 预热阶段
         warmup_progress = tf.minimum(1.0, step / warmup_steps)
-        warmup_lr = self.initial_lr + (self.target_lr - self.initial_lr) * warmup_progress
+        warmup_lr = (
+            self.initial_lr + (self.target_lr - self.initial_lr) * warmup_progress
+        )
 
         # 余弦衰减阶段
-        decay_progress = tf.maximum(0.0, step - warmup_steps) / (decay_steps - warmup_steps)
+        decay_progress = tf.maximum(0.0, step - warmup_steps) / (
+            decay_steps - warmup_steps
+        )
         decay_factor = 0.5 * (1.0 + tf.cos(tf.constant(np.pi) * decay_progress))
         decay_lr = self.target_lr * decay_factor
 
@@ -99,15 +125,25 @@ class WarmupCosineDecay(tf.keras.optimizers.schedules.LearningRateSchedule):
 
     def get_config(self):
         """
-        获取配置信息
+        获取配置信息，用于序列化
         :return: 配置字典
         """
-        return {
+        config = {
             "initial_lr": self.initial_lr,
             "target_lr": self.target_lr,
             "warmup_steps": self.warmup_steps,
             "decay_steps": self.decay_steps,
         }
+        return config
+
+    @classmethod
+    def from_config(cls, config):
+        """
+        从配置创建实例，用于反序列化
+        :param config: 配置字典
+        :return: 类实例
+        """
+        return cls(**config)
 
 
 def create_lstm(
@@ -275,7 +311,7 @@ def train_with_multi_gpu(
         initial_lr=initial_lr,
         target_lr=target_lr,
         warmup_steps=warmup_steps,
-        decay_steps=total_steps
+        decay_steps=total_steps,
     )
 
     # 模型配置
@@ -406,14 +442,6 @@ def train_with_multi_gpu(
             restore_best_weights=True,
             min_delta=1e-4,  # 添加最小改善阈值
         ),
-        tf.keras.callbacks.ReduceLROnPlateau(
-            monitor="val_loss",
-            factor=0.5,
-            patience=3,
-            verbose=1,
-            min_lr=target_lr / 100,  # 设置最小学习率
-            min_delta=1e-4,  # 添加最小改善阈值
-        ),
     ]
 
     # 开始训练
@@ -443,52 +471,18 @@ def train_with_multi_gpu(
             validation_steps=len(test_x) // global_batch_size,
         )
 
-    # 加载最佳模型进行评估
-    logger.info("加载最佳模型进行评估...")
-    best_model = tf.keras.models.load_model(model_save_path)
+    logger.info("训练完成！")
 
-    # 在测试集上进行评估
-    logger.info("开始在测试集上进行评估...")
-    test_loss, test_accuracy = best_model.evaluate(
-        test_x,
-        test_y,
-        batch_size=batch_size,
-        verbose=0,
+    # 手动保存最终模型
+    # 因为EarlyStopping的restore_best_weights=True，所以这将保存验证损失最小的模型
+    final_model_path = os.path.join(
+        os.path.dirname(model_save_path), "lstm_model_final.keras"
     )
-    logger.info(f"测试集损失: {test_loss:.4f}")
-    logger.info(f"测试集准确率: {test_accuracy:.4f}")
+    logger.info(f"正在手动保存最终模型到: {final_model_path}")
+    model.save(final_model_path)
+    logger.info("最终模型已成功保存！")
 
-    # 在测试集上进行预测
-    y_pred = best_model.predict(
-        test_x,
-        batch_size=batch_size,
-        verbose=0,
-    )
-    y_pred_classes = np.argmax(y_pred, axis=1)
-    y_true_classes = np.argmax(test_y, axis=1)
-
-    # 输出详细的分类报告
-    logger.info("\n分类报告:")
-    logger.info(
-        classification_report(
-            y_true_classes,
-            y_pred_classes,
-            target_names=list(output_dictionary.values()),
-        )
-    )
-
-    # 示例预测
-    N = min(5, len(test_x))  # 展示前5个预测结果
-    logger.info("\n示例预测:")
-    for i in range(N):
-        sentence = [inverse_word_dictionary[j] for j in test_x[i] if j != 0]
-        true_label = output_dictionary[np.argmax(test_y[i])]
-        pred_label = output_dictionary[np.argmax(y_pred[i])]
-        logger.info(f"文本: {''.join(sentence)}")
-        logger.info(f"真实标签: {true_label}, 预测标签: {pred_label}")
-        logger.info("---")
-
-    return history, test_accuracy
+    return history
 
 
 def main():
@@ -519,7 +513,7 @@ def main():
         os.makedirs("data/output", exist_ok=True)
 
         # 开始训练
-        history, accuracy = train_with_multi_gpu(
+        history = train_with_multi_gpu(
             input_shape=180,
             filepath=data_file,
             model_save_path=settings.MODEL_SAVE_FILE_PATH,
@@ -527,11 +521,11 @@ def main():
             batch_size=64,
         )
 
-        logger.info(f"训练完成，最终准确率: {accuracy:.4f}")
+        logger.info("训练过程完成")
 
     except Exception as e:
         logger.error(f"训练过程中发生错误: {e}")
-        logger.error(f"详细错误信息: ", exc_info=True)
+        logger.error("详细错误信息: ", exc_info=True)
     finally:
         logger.info("程序结束")
 
