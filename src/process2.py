@@ -6,10 +6,11 @@ from keras.layers import LSTM, Dense, Embedding, Dropout
 from keras.models import Sequential
 from keras.preprocessing.sequence import pad_sequences
 from keras.utils import to_categorical
-from tensorflow.keras.utils import plot_model
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
+from tensorflow.keras.utils import plot_model
 
+from src.config import settings
 from src.logger import logger
 
 
@@ -21,7 +22,7 @@ def load_data(filepath: str, input_shape: int = 20):
     :param input_shape: 输入序列长度
     :return:
     """
-    df = pd.read_csv(filepath, encoding="gbk")
+    df = pd.read_csv(filepath, encoding="utf-8")
 
     # 标签及词汇表
     labels, vocabulary = list(df["label"].unique()), list(df["evaluation"].unique())
@@ -35,11 +36,14 @@ def load_data(filepath: str, input_shape: int = 20):
 
     # 字典列表
     word_dictionary = {word: i + 1 for i, word in enumerate(vocabulary)}
-    with open("word_dict.pk", "wb") as f:
+    word_dict_path = f"{settings.OUTPUT_DIR_PATH}/word_dict.pk"
+    with open(word_dict_path, "wb") as f:
         pickle.dump(word_dictionary, f)
+
     inverse_word_dictionary = {i + 1: word for i, word in enumerate(vocabulary)}
     label_dictionary = {label: i for i, label in enumerate(labels)}
-    with open("label_dict.pk", "wb") as f:
+    label_dict_path = f"{settings.OUTPUT_DIR_PATH}/label_dict.pk"
+    with open(label_dict_path, "wb") as f:
         pickle.dump(label_dictionary, f)
     output_dictionary = {i: labels for i, labels in enumerate(labels)}
 
@@ -149,11 +153,11 @@ def model_train(input_shape: int, filepath: str, model_save_path: str):
         logger.info("y_predict:", y_predict)
         label_predict = output_dictionary[np.argmax(y_predict[0])]
         label_true = output_dictionary[np.argmax(test_y[start:end])]
-        
+
         logger.info(f"label_predict:{label_predict}, label_true:{label_true}")
         # 输出预测结果
         logger.info("".join(sentence), label_true, label_predict)
-        
+
         predict.append(label_predict)
         label.append(label_true)
 
