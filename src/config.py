@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     INPUT_DIR_PATH: Optional[str] = Field(
         default="data/input", description="数据目录路径的输入目录"
     )
+    INPUT_DATA_FILE_PATH: Optional[str] = Field(
+        default="data/input/all_utf8.csv", description="数据文件路径"
+    )
     OUTPUT_DIR_PATH: Optional[str] = Field(
         default="data/output", description="数据目录路径的输出目录"
     )
