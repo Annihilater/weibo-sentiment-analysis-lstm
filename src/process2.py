@@ -73,36 +73,43 @@ def load_data(filepath: str, input_shape: int = 20):
     return x, y, output_dictionary, vocab_size, label_size, inverse_word_dictionary
 
 
-def create_lstm(n_units: int, input_shape: int, output_dim: int, filepath: str):
+def create_lstm(n_units: int, input_shape: int, output_dim: int, vocab_size: int, label_size: int):
     """
     创建深度学习模型，Embedding + LSTM + Softmax
     :param n_units: LSTM层神经元个数
     :param input_shape: 输入序列长度
     :param output_dim: Embedding层输出维度
-    :param filepath: 数据集路径
+    :param vocab_size: 词汇表大小
+    :param label_size: 标签类别数
     :return:
     """
-    x, y, output_dictionary, vocab_size, label_size, inverse_word_dictionary = (
-        load_data(filepath)
-    )
     model = Sequential()
     model.add(
         Embedding(
             input_dim=vocab_size + 1,
             output_dim=output_dim,
-            input_length=input_shape,
-            mask_zero=True,
+            input_length=input_shape
         )
     )
-    model.add(LSTM(n_units, input_shape=(x.shape[0], x.shape[1])))
+    model.add(LSTM(n_units))
     model.add(Dropout(0.2))
     model.add(Dense(label_size, activation="softmax"))
+    
+    # 编译模型
     model.compile(
-        loss="categorical_crossentropy", optimizer="adam", metrics=["accuracy"]
+        loss="categorical_crossentropy", 
+        optimizer="adam", 
+        metrics=["accuracy"]
     )
-    plot_model(model, to_file="./model_lstm.png", show_shapes=True)
+    
+    # 构建模型
+    model.build((None, input_shape))
+    
     # 输出模型信息
     model.summary()
+    
+    # 保存模型结构图
+    plot_model(model, to_file="./model_lstm.png", show_shapes=True)
 
     return model
 
@@ -119,14 +126,17 @@ def model_train(input_shape: int, filepath: str, model_save_path: str):
     logger.info(f"数据集路径: {filepath}")
     logger.info(f"模型保存路径: {model_save_path}")
 
-    logger.info("将数据集分为训练集和测试集，占比为9：1")
-    # input_shape=100
+    logger.info("开始加载数据...")
     x, y, output_dictionary, vocab_size, label_size, inverse_word_dictionary = (
         load_data(filepath, input_shape)
     )
+    logger.info(f"数据加载完成。数据集大小: {len(x)}，词汇表大小: {vocab_size}，标签数: {label_size}")
+
+    logger.info("将数据集分为训练集和测试集，占比为9：1")
     train_x, test_x, train_y, test_y = train_test_split(
         x, y, test_size=0.1, random_state=42
     )
+    logger.info(f"训练集大小: {len(train_x)}，测试集大小: {len(test_x)}")
 
     # 模型输入参数，需要根据自己需要调整
     n_units = 100
@@ -134,33 +144,73 @@ def model_train(input_shape: int, filepath: str, model_save_path: str):
     epochs = 5
     output_dim = 20
 
+    logger.info("开始创建模型...")
     # 模型训练
-    lstm_model = create_lstm(n_units, input_shape, output_dim, filepath)
-    lstm_model.fit(train_x, train_y, epochs=epochs, batch_size=batch_size, verbose=1)
+    lstm_model = create_lstm(n_units, input_shape, output_dim, vocab_size, label_size)
+    
+    logger.info("开始训练模型...")
+    # 添加训练回调函数
+    from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint, EarlyStopping
+    
+    # 确保日志目录存在
+    import os
+    os.makedirs('./logs/tensorboard', exist_ok=True)
+    os.makedirs(os.path.dirname(model_save_path), exist_ok=True)
+    
+    callbacks = [
+        TensorBoard(log_dir='./logs/tensorboard', histogram_freq=1),  # TensorBoard可视化
+        ModelCheckpoint(
+            filepath=model_save_path,  # 使用传入的模型保存路径
+            monitor='val_accuracy',
+            save_best_only=True,
+            mode='max',
+            verbose=1
+        ),  # 保存最佳模型
+        EarlyStopping(
+            monitor='val_loss',
+            patience=3,
+            verbose=1
+        )  # 早停策略
+    ]
+    
+    # 训练模型
+    history = lstm_model.fit(
+        train_x, 
+        train_y, 
+        epochs=epochs, 
+        batch_size=batch_size, 
+        validation_split=0.1,  # 使用10%的训练数据作为验证集
+        callbacks=callbacks,
+        verbose=1  # 显示进度条
+    )
 
-    # 模型保存
+    # 保存最终模型
+    logger.info("保存模型...")
     lstm_model.save(model_save_path)
+    logger.info(f"模型已保存到: {model_save_path}")
 
     # 测试条数
+    logger.info("开始在测试集上进行评估...")
     N = test_x.shape[0]
     predict = []
     label = []
     for start, end in zip(range(0, N, 1), range(1, N + 1, 1)):
-        logger.info(f"start:{start}, end:{end}")
         sentence = [inverse_word_dictionary[i] for i in test_x[start] if i != 0]
-        y_predict = lstm_model.predict(test_x[start:end])
+        y_predict = lstm_model.predict(test_x[start:end], verbose=0)
 
-        logger.info("y_predict:", y_predict)
         label_predict = output_dictionary[np.argmax(y_predict[0])]
         label_true = output_dictionary[np.argmax(test_y[start:end])]
-
-        logger.info(f"label_predict:{label_predict}, label_true:{label_true}")
-        # 输出预测结果
-        logger.info("".join(sentence), label_true, label_predict)
-
+        
+        if start % 1000 == 0:  # 每1000条打印一次进度
+            logger.info(f"评估进度: {start}/{N}")
+            logger.info(f"示例预测 - 文本: {''.join(sentence)}")
+            logger.info(f"真实标签: {label_true}, 预测标签: {label_predict}")
+        
         predict.append(label_predict)
         label.append(label_true)
 
     # 预测准确率
     acc = accuracy_score(predict, label)
-    logger.info("模型在测试集上的准确率:%s" % acc)
+    logger.info("模型在测试集上的准确率: %.4f" % acc)
+    
+    return history, acc
