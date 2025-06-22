@@ -14,7 +14,6 @@ loguru==0.7.3
 markdown-it-py==3.0.0
 matplotlib>=3.8.0
 mdurl==0.1.2
-ml_dtypes==0.5.1
 mypy_extensions==1.1.0
 namex==0.1.0
 numpy>=1.24.0
@@ -44,4 +43,4 @@ typing-inspection==0.4.1
 typing_extensions==4.14.0
 tzdata==2025.2
 wheel==0.45.1
-tensorflow[and-cuda]==2.16.1
+tensorflow==2.19.0
