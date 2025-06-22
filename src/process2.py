@@ -4,6 +4,7 @@ from typing import Tuple, Dict, List
 
 import numpy as np
 import pandas as pd
+import tensorflow as tf
 from keras.layers import LSTM, Dense, Embedding, Dropout, BatchNormalization
 from keras.models import Sequential, load_model
 from keras.preprocessing.sequence import pad_sequences
@@ -13,7 +14,6 @@ from sklearn.model_selection import train_test_split
 from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint, EarlyStopping
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.utils import plot_model
-import tensorflow as tf
 
 from src.config import settings
 from src.logger import logger
@@ -24,17 +24,17 @@ def check_gpu_availability():
     检查GPU可用性并输出相关信息
     """
     logger.info("检查GPU可用性...")
-    
+
     # 检查TensorFlow版本
     logger.info(f"TensorFlow版本: {tf.__version__}")
-    
+
     # 检查GPU设备
-    physical_devices = tf.config.list_physical_devices('GPU')
+    physical_devices = tf.config.list_physical_devices("GPU")
     if physical_devices:
         logger.info(f"发现 {len(physical_devices)} 个GPU设备:")
         for i, device in enumerate(physical_devices):
             logger.info(f"  GPU {i}: {device}")
-        
+
         # 设置GPU内存增长
         try:
             for gpu in physical_devices:
@@ -48,13 +48,13 @@ def check_gpu_availability():
         logger.info("1. CUDA工具包已正确安装")
         logger.info("2. 环境变量CUDA_HOME和LD_LIBRARY_PATH已设置")
         logger.info("3. TensorFlow-GPU已正确安装")
-    
+
     # 检查CUDA构建
     if tf.test.is_built_with_cuda():
         logger.info("TensorFlow支持CUDA")
     else:
         logger.warning("TensorFlow不支持CUDA")
-    
+
     return len(physical_devices) > 0
 
 
@@ -147,13 +147,15 @@ def load_data(
     texts = df["evaluation"].tolist()
     # 准备参数列表
     args_list = [(text, word_dictionary) for text in texts]
-    chunk_size = len(texts) // (multiprocessing.cpu_count() * 4)  # 根据CPU核心数确定chunk大小
-    
+    chunk_size = len(texts) // (
+        multiprocessing.cpu_count() * 4
+    )  # 根据CPU核心数确定chunk大小
+
     with multiprocessing.Pool() as pool:
         x = pool.map(process_text, args_list, chunksize=chunk_size)
-    
+
     x = pad_sequences(maxlen=input_shape, sequences=x, padding="post", value=0)
-    
+
     # 处理标签
     y = np.array([label_dictionary[label] for label in df["label"]])
     y = to_categorical(y, num_classes=label_size)
@@ -229,7 +231,7 @@ def model_train(input_shape: int, filepath: str, model_save_path: str):
     logger.info(f"开始训练模型，输入序列长度: {input_shape}")
     logger.info(f"数据集路径: {filepath}")
     logger.info(f"模型保存路径: {model_save_path}")
-    
+
     # 检查GPU可用性
     gpu_available = check_gpu_availability()
     if gpu_available:
