@@ -26,7 +26,7 @@
     ```
 
 2. **创建并激活 Conda 虚拟环境**
-    我们使用 `requirements.txt` 文件来确保环境的一致性。
+    我们使用 `requirements-gpu.txt` 文件来确保环境的一致性。
 
     ```bash
     # 创建一个名为 "weibo-sentiment-analysis-lstm-py310" 的新环境
@@ -36,7 +36,7 @@
     conda activate weibo-sentiment-analysis-lstm-py310
 
     # 安装所有依赖
-    pip install -r requirements.txt
+    pip install -r requirements-gpu.txt
     ```
 
 3. **准备数据 (如果需要)**
