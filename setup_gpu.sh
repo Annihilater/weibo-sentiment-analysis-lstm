@@ -1,101 +1,67 @@
 #!/bin/bash
 
-# 设置错误时退出
-set -e
+# 显示系统信息
+echo "=========================================="
+echo "系统信息:"
+uname -a
+echo "=========================================="
 
-echo "========================================"
-echo "CUDA环境设置脚本 - RTX 4090 GPU优化"
-echo "========================================"
+# 检查NVIDIA驱动和CUDA版本
+echo "NVIDIA驱动和CUDA信息:"
+if command -v nvidia-smi &> /dev/null; then
+    nvidia-smi
+else
+    echo "未找到nvidia-smi命令，请确保NVIDIA驱动已正确安装"
+fi
+echo "=========================================="
 
-# 检查NVIDIA驱动
-echo "检查NVIDIA驱动..."
-nvidia-smi
+# 检查CUDA库路径
+echo "CUDA库路径:"
+if [ -d "/usr/local/cuda" ]; then
+    echo "找到CUDA安装路径: /usr/local/cuda"
+    ls -la /usr/local/cuda/lib64/libcud*.so* 2>/dev/null || echo "未找到CUDA库文件"
+else
+    echo "未在默认位置找到CUDA安装"
+    # 尝试查找系统中的CUDA库
+    find /usr -name "libcudart.so*" 2>/dev/null || echo "未找到CUDA运行时库"
+fi
+echo "=========================================="
 
-# 检查CUDA版本
-echo "查找CUDA库路径..."
-CUDA_PATH=""
+# 设置环境变量
+echo "设置环境变量..."
 
-# 搜索常见的CUDA安装路径
-for path in /usr/local/cuda* /usr/local/cuda /opt/cuda; do
-    if [ -d "$path" ]; then
-        CUDA_PATH="$path"
-        echo "找到CUDA路径: $CUDA_PATH"
-        break
-    fi
-done
-
-if [ -z "$CUDA_PATH" ]; then
-    echo "警告: 未找到CUDA路径，将尝试使用系统默认路径"
-    CUDA_PATH="/usr/local/cuda"
+# 如果存在CUDA安装，设置环境变量
+if [ -d "/usr/local/cuda" ]; then
+    export CUDA_HOME=/usr/local/cuda
+    export LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
+    export PATH=${CUDA_HOME}/bin:${PATH}
+    echo "已设置CUDA环境变量:"
+    echo "CUDA_HOME=${CUDA_HOME}"
+    echo "LD_LIBRARY_PATH包含CUDA路径"
 fi
 
-# 设置CUDA环境变量
-echo "设置CUDA环境变量..."
-export CUDA_HOME=$CUDA_PATH
-export PATH=$CUDA_HOME/bin:$PATH
-export LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
-
-# 检查cuDNN
-CUDNN_PATHS=(
-    "/usr/lib/x86_64-linux-gnu"
-    "/usr/local/cuda/lib64"
-    "/usr/lib/cuda/lib64"
-    "/usr/local/cudnn/lib64"
-)
-
-CUDNN_FOUND=false
-for path in "${CUDNN_PATHS[@]}"; do
-    if [ -f "$path/libcudnn.so" ]; then
-        echo "找到cuDNN路径: $path"
-        export LD_LIBRARY_PATH=$path:$LD_LIBRARY_PATH
-        CUDNN_FOUND=true
-        break
-    fi
-done
-
-if [ "$CUDNN_FOUND" = false ]; then
-    echo "警告: 未找到cuDNN库，TensorFlow可能无法使用GPU"
-    echo "安装TensorFlow GPU依赖..."
-    pip install --upgrade pip
-    pip install nvidia-cudnn-cu12 tensorflow==2.16.1
-fi
-
-# 设置TensorFlow环境变量
-echo "设置TensorFlow环境变量..."
+# 设置TensorFlow相关环境变量
 export TF_FORCE_GPU_ALLOW_GROWTH=true
-export TF_GPU_ALLOCATOR=cuda_malloc_async
-export TF_CPP_MIN_LOG_LEVEL=1
-export TF_GPU_THREAD_MODE=gpu_private
-export TF_ENABLE_ONEDNN_OPTS=0
-export TF_XLA_FLAGS="--tf_xla_enable_xla_devices --tf_xla_auto_jit=2"
+export TF_CPP_MIN_LOG_LEVEL=0
+export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6
 
-# 验证CUDA安装
-echo "验证CUDA安装..."
-nvcc --version
+echo "已设置TensorFlow环境变量:"
+echo "TF_FORCE_GPU_ALLOW_GROWTH=true"
+echo "TF_CPP_MIN_LOG_LEVEL=0"
+echo "CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6"
+echo "=========================================="
 
-# 验证TensorFlow GPU可用性
-echo "验证TensorFlow GPU可用性..."
-python -c "
-import tensorflow as tf
-print('TensorFlow版本:', tf.__version__)
-print('CUDA可用:', tf.test.is_built_with_cuda())
-print('GPU可用:', tf.config.list_physical_devices('GPU'))
-"
+# 验证Python和TensorFlow
+echo "验证Python和TensorFlow安装:"
+if command -v python3 &> /dev/null; then
+    echo "Python版本:"
+    python3 --version
+    
+    echo "TensorFlow信息:"
+    python3 -c "import tensorflow as tf; print(f'TensorFlow版本: {tf.__version__}'); print(f'GPU可用: {len(tf.config.list_physical_devices(\"GPU\")) > 0}'); print(f'CUDA已启用: {tf.test.is_built_with_cuda()}'); print('可用设备:'); [print(d) for d in tf.config.list_physical_devices()]" || echo "无法导入TensorFlow或执行测试"
+else
+    echo "未找到Python3"
+fi
+echo "=========================================="
 
-# 保存环境变量到文件，方便后续加载
-echo "# GPU环境变量 - 由setup_gpu.sh生成" > gpu_env.sh
-echo "export CUDA_HOME=$CUDA_HOME" >> gpu_env.sh
-echo "export PATH=$CUDA_HOME/bin:\$PATH" >> gpu_env.sh
-echo "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> gpu_env.sh
-echo "export TF_FORCE_GPU_ALLOW_GROWTH=true" >> gpu_env.sh
-echo "export TF_GPU_ALLOCATOR=cuda_malloc_async" >> gpu_env.sh
-echo "export TF_CPP_MIN_LOG_LEVEL=1" >> gpu_env.sh
-echo "export TF_GPU_THREAD_MODE=gpu_private" >> gpu_env.sh
-echo "export TF_ENABLE_ONEDNN_OPTS=0" >> gpu_env.sh
-echo "export TF_XLA_FLAGS=\"--tf_xla_enable_xla_devices --tf_xla_auto_jit=2\"" >> gpu_env.sh
-
-echo "========================================"
-echo "CUDA环境设置完成"
-echo "========================================"
-echo "环境变量已保存到 gpu_env.sh"
-echo "使用方法: source gpu_env.sh" 
+echo "环境设置完成" 
