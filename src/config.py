@@ -23,7 +23,7 @@ class Settings(BaseSettings):
         default="data/output", description="数据目录路径的输出目录"
     )
     MODEL_SAVE_FILE_PATH: Optional[str] = Field(
-        default="data/output/lstm_model.h5", description="模型保存路径"
+        default="data/output/lstm_model.keras", description="模型保存路径"
     )
     PREDICT_RESULT_FILE_PATH: Optional[str] = Field(
         default="data/output/predict_result.csv", description="预测结果保存路径"
