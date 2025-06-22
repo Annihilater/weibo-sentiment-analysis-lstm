@@ -22,6 +22,8 @@ if gpus:
         print(f"设置GPU内存增长失败: {e}")
 
 import numpy as np
+import pandas as pd
+from datetime import datetime
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.callbacks import (
     TensorBoard,
@@ -544,6 +546,77 @@ def train_with_multi_gpu(
         logger.info(f"文本: {sentence}")
         logger.info(f"真实标签: {true_label}, 预测标签: {pred_label}")
         logger.info("---")
+
+    # =================================================================
+    # 保存训练和评估结果到CSV文件
+    # =================================================================
+    logger.info("======================================")
+    logger.info("正在将结果保存到CSV文件...")
+    logger.info("======================================")
+
+    try:
+        # 获取最佳验证轮次的结果
+        best_epoch_index = np.argmax(history.history["val_accuracy"])
+        best_val_accuracy = history.history["val_accuracy"][best_epoch_index]
+        best_val_loss = history.history["val_loss"][best_epoch_index]
+
+        # 兼容不同Keras版本下metrics key的命名 (e.g., val_precision vs val_precision_1)
+        val_precision_key = [k for k in history.history.keys() if "val_precision" in k][
+            0
+        ]
+        val_recall_key = [k for k in history.history.keys() if "val_recall" in k][0]
+        best_val_precision = history.history[val_precision_key][best_epoch_index]
+        best_val_recall = history.history[val_recall_key][best_epoch_index]
+
+        # 将分类报告解析为字典以便写入CSV
+        report_dict = classification_report(
+            y_true_classes,
+            y_pred_classes,
+            target_names=list(output_dictionary.values()),
+            digits=4,
+            output_dict=True,
+        )
+
+        # 准备要写入CSV的数据
+        results_data = {
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "best_epoch": best_epoch_index + 1,
+            "best_val_loss": best_val_loss,
+            "best_val_accuracy": best_val_accuracy,
+            "best_val_precision": best_val_precision,
+            "best_val_recall": best_val_recall,
+            "final_test_loss": test_loss,
+            "final_test_accuracy": test_accuracy,
+            "final_test_precision": test_precision,
+            "final_test_recall": test_recall,
+        }
+
+        # 将分类报告的字典扁平化，并为key添加'report_'前缀
+        for label, metrics in report_dict.items():
+            if isinstance(metrics, dict):
+                for metric_name, value in metrics.items():
+                    results_data[f'report_{label.replace(" ", "_")}_{metric_name}'] = (
+                        value
+                    )
+            else:
+                # for keys like 'accuracy'
+                results_data[f'report_{label.replace(" ", "_")}'] = metrics
+
+        # 创建DataFrame
+        df = pd.DataFrame([results_data])
+
+        # 定义CSV文件路径
+        timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+        csv_path = os.path.join(
+            settings.OUTPUT_DIR_PATH, f"training_report_{timestamp_str}.csv"
+        )
+
+        # 写入CSV
+        df.to_csv(csv_path, index=False, encoding="utf-8-sig")
+        logger.info(f"训练和评估报告已成功保存到: {csv_path}")
+
+    except Exception as e:
+        logger.error(f"保存报告到CSV失败: {e}", exc_info=True)
 
     return history
 
