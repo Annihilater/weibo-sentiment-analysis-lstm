@@ -376,6 +376,7 @@ $RECYCLE.BIN/
 
 # End of https://www.toptal.com/developers/gitignore/api/macos,windows,linux,vim,visualstudiocode,jetbrains+all,python
 
-data
+data/output/
+data/output_backup/
 logs
 .vscode
