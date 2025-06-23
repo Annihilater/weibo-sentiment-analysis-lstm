@@ -45,7 +45,7 @@ chmod +x server_start.sh && ./server_start.sh
 
 - `src/server_main.py` - 服务器优化版主程序
 - `src/server_config.py` - 服务器配置文件
-- `src/process2.py` - 原始训练代码
+- `src/train_and_evaluation.py` - 原始训练代码
 - `monitor_resources.py` - 资源监控脚本（自动生成）
 
 ## 性能优化特性
