@@ -10,17 +10,24 @@ weibo-sentiment-analysis-lstm/
 │   ├── input/          # 输入数据目录
 │   │   ├── all.csv     # 原始数据
 │   │   └── all_utf8.csv# UTF-8编码的数据
-│   └── output/         # 输出数据目录
-│       ├── word_dict.pk    # 字符映射字典
-│       ├── label_dict.pk   # 标签映射字典
-│       └── lstm_model.h5   # 训练好的模型
+│   ├── output/         # 输出数据目录
+│   │   ├── word_dict.pk    # 字符映射字典
+│   │   ├── label_dict.pk   # 标签映射字典
+│   │   └── lstm_model.keras   # 训练好的模型
+│   └── output_backup/  # 输出备份目录
 ├── src/
-│   ├── config.py           # 配置文件
-│   ├── logger.py           # 日志配置
-│   ├── main.py            # 主程序
-│   ├── process.py         # 数据统计和可视化
-│   └── process2.py        # 模型训练和预测
-└── requirements.txt    # 项目依赖
+│   ├── __init__.py
+│   ├── config.py       # 配置文件
+│   ├── logger.py       # 日志配置
+│   ├── main.py        # 单机版主程序
+│   ├── server_main.py # 服务器版主程序
+│   ├── server_config.py # 服务器配置
+│   ├── process.py     # 数据处理和可视化
+│   └── train_and_evaluation.py # 模型训练和评估
+├── tests/             # 单元测试目录
+├── docs/             # 文档目录
+├── requirements.txt   # 基础依赖
+└── requirements-gpu.txt # GPU环境依赖
 ```
 
 ## 数据处理流程
@@ -148,7 +155,6 @@ weibo-sentiment-analysis-lstm/
 ```bash
 pip install -r requirements.txt
 ```
-
 2. 运行程序：
 
 ```bash
@@ -171,7 +177,7 @@ pip install -r requirements.txt
 ## 注意事项
 
 1. 确保输入数据为UTF-8编码
-2. 模型参数可在 `process2.py` 中调整
+2. 模型参数可在 `train_and_evaluation.py` 中调整
 3. 可视化结果会自动保存在输出目录
 
 ## Docker运行说明
@@ -270,7 +276,7 @@ python src/main.py
 
 ### 2.1 工作流程
 
-脚本 `src/main.py` (内部调用 `src/process2.py` 的逻辑) 将会执行一个完整的端到端任务，具体流程如下：
+脚本 `src/main.py` (内部调用 `src/train_and_evaluation.py` 的逻辑) 将会执行一个完整的端到端任务，具体流程如下：
 
 ```mermaid
 graph TD
@@ -307,3 +313,4 @@ graph TD
 - **双层 LSTM**: 两层 LSTM 堆叠，用于捕捉文本中的长距离依赖关系和复杂的序列模式。
 - **Dropout**: 在 LSTM 和全连接层后加入，以防止模型过拟合。
 - **Dense 层**: 最终通过一个带有 Softmax 激活函数的全连接层输出分类概率。
+
