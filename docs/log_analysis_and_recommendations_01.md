@@ -26,12 +26,12 @@
 #### 2. 训练启动信息
 
 ```
-2025-06-22 22:10:14.441 | 68935:8269531200 | INFO | src.process2:model_train:151 | 开始训练模型...
+2025-06-22 22:10:14.441 | 68935:8269531200 | INFO | src.train_and_evaluation:model_train:151 | 开始训练模型...
 ```
 
 * **2025-06-22 22:10:14.441:** 日志记录的时间戳。
 * **INFO:** 日志级别（信息）。
-* **src.process2:model_train:151:** 这条日志是由 `src/process2.py` 文件中的 `model_train` 函数的第 151 行代码打印的。
+* **src.train_and_evaluation:model_train:151:** 这条日志是由 `src/train_and_evaluation.py` 文件中的 `model_train` 函数的第 151 行代码打印的。
 * **开始训练模型...:** 日志内容，表示训练正式开始。
 
 #### 3. 第一个训练周期 (Epoch 1/5)
