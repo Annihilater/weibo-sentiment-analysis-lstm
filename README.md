@@ -180,7 +180,7 @@ pip install -r requirements.txt
 2. 模型参数可在 `train_and_evaluation.py` 中调整
 3. 可视化结果会自动保存在输出目录
 
-## Docker运行说明
+## Docker运行说明 (计划实现中，暂未实现)
 
 ### 方式一：直接使用预构建镜像
 
